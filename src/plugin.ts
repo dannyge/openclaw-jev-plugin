@@ -94,6 +94,42 @@ export function registerJevGate(api: OpenClawPluginApi, deps: JevGateDependencie
       );
     }
   }
+
+  // Runtime fallback: when the host does not pre-resolve the SecretRef into config.apiKey
+  // (store entries are host-scoped), resolve it lazily through the plugin SDK on first use.
+  let lazyResolveTried = false;
+  async function ensureJev(): Promise<JevClient | undefined> {
+    if (jev || deps.jev) return jev;
+    if (lazyResolveTried || !settings.apiKeyRef) return jev;
+    lazyResolveTried = true;
+    try {
+      const sdk = (await import("openclaw/plugin-sdk/secret-input")) as {
+        resolveSecretInputString?: (args: {
+          value: unknown;
+          path: string;
+          mode: string;
+        }) => { value?: unknown; status?: string } | undefined;
+      };
+      const credential = sdk.resolveSecretInputString?.({
+        value: settings.apiKeyRef,
+        path: "plugins.entries.jev-gate.config.apiKey",
+        mode: "inspect",
+      });
+      const value = credential && typeof credential.value === "string" ? credential.value : undefined;
+      if (value) {
+        jev = createJevClient({
+          apiKey: value,
+          baseUrl: settings.baseUrl,
+          model: settings.model,
+          timeoutMs: settings.timeoutMs,
+        });
+        log.info("jev-gate: apiKey resolved at runtime; jev client ready");
+      }
+    } catch (error) {
+      log.warn(`jev-gate: runtime secret resolution failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return jev;
+  }
   log.info(`jev-gate: replyGate ${gate.enabled ? "on" : "off"}, modelRouter ${router.enabled ? "on" : "off"}`);
 
   api.on("before_dispatch", async (event, ctx) => {
@@ -126,14 +162,15 @@ export function registerJevGate(api: OpenClawPluginApi, deps: JevGateDependencie
       return undefined;
     }
 
-    if (!jev) {
+    const gateClient = await ensureJev();
+    if (!gateClient) {
       buffer.markLast(key, gate.failOpen ? "replied" : "stayed_silent");
       return gate.failOpen ? undefined : SILENT;
     }
 
     try {
       const decision = await decideWithJev(
-        jev,
+        gateClient,
         {
           assistantName: assistant.name,
           assistantDescription: settings.assistantDescription,
@@ -179,7 +216,8 @@ export function registerJevGate(api: OpenClawPluginApi, deps: JevGateDependencie
 
     api.on("before_model_resolve", async (event, ctx) => {
       // Cron, heartbeat, memory and overflow runs carry the host's own prompts, not a person's request.
-      if (!jev || (ctx.trigger !== undefined && ctx.trigger !== "user")) {
+      const routeClient = await ensureJev();
+      if (!routeClient || (ctx.trigger !== undefined && ctx.trigger !== "user")) {
         return undefined;
       }
       const key = ctx.sessionKey;
@@ -189,7 +227,7 @@ export function registerJevGate(api: OpenClawPluginApi, deps: JevGateDependencie
       const earlier = recent.at(-1)?.role === "user" ? recent.slice(0, -1) : recent;
       try {
         const decision = await routeWithJev(
-          jev,
+          routeClient,
           {
             assistantName: assistants.resolve(key).name,
             assistantDescription: settings.assistantDescription,

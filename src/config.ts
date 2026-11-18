@@ -47,6 +47,8 @@ export type JevGateSettings = {
    * store entry). The key then falls back to `TYPESAFE_API_KEY`. Holds only source/provider, never the value.
    */
   unresolvedApiKeyRef: { source: string; provider: string } | undefined;
+  /** Raw SecretRef object kept for lazy runtime resolution when the host did not pre-resolve it. Never logged. */
+  apiKeyRef?: unknown;
   baseUrl: string;
   model: string;
   timeoutMs: number;
@@ -169,6 +171,7 @@ export function resolveSettings(
     },
     apiKey: readString(cfg.apiKey) ?? readString(env.TYPESAFE_API_KEY),
     unresolvedApiKeyRef: readUnresolvedSecretRef(cfg.apiKey),
+    apiKeyRef: readUnresolvedSecretRef(cfg.apiKey) ? cfg.apiKey : undefined,
     baseUrl: readString(cfg.baseUrl) ?? readString(env.TYPESAFE_BASE_URL) ?? DEFAULT_SETTINGS.baseUrl,
     model: readString(cfg.model) ?? readString(env.TYPESAFE_DEFAULT_MODEL) ?? DEFAULT_SETTINGS.model,
     timeoutMs: Math.round(readNumber(cfg.timeoutMs, 100, 60_000) ?? DEFAULT_SETTINGS.timeoutMs),

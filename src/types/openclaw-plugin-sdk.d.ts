@@ -183,3 +183,20 @@ declare module "openclaw/plugin-sdk/plugin-entry" {
 
   export function definePluginEntry(options: DefinePluginEntryOptions): unknown;
 }
+
+declare module "openclaw/plugin-sdk/secret-input" {
+  export type SecretInputResolution = {
+    value?: unknown;
+    status?: string;
+  };
+
+  /**
+   * Resolves a config value that may be a plain string or an unresolved SecretRef
+   * object against the host's secrets runtime. Inspect mode never performs network I/O.
+   */
+  export function resolveSecretInputString(args: {
+    value: unknown;
+    path: string;
+    mode: string;
+  }): SecretInputResolution | undefined;
+}
