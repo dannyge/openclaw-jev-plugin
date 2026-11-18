@@ -1,7 +1,7 @@
 {
   "name": "openclaw-jev-gate",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.1",
+  "private": false,
   "description": "OpenClaw plugin that asks TypeSafe Jev whether the bot should answer an incoming message.",
   "type": "module",
   "scripts": {
@@ -29,5 +29,12 @@
       "openclawVersion": "2026.9.4",
       "pluginSdkVersion": "2026.9.4"
     }
+  },
+  "author": {
+    "name": "dannyge"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dannyge/openclaw-jev-plugin.git"
   }
 }
